@@ -48,9 +48,9 @@
     <!-- 상단 바: 날짜 및 요일 선택 -->
     <div class="flex flex-col lg:flex-row justify-between items-center mb-6 gap-4 bg-white/70 backdrop-blur-md p-5 rounded-[2.5rem] border border-white/50 shadow-sm">
         <div class="flex items-center gap-6">
-            <!-- 오늘 날짜 -->
+            <!-- 날짜 표시 영역 (선택한 요일에 맞춰 실시간 변경) -->
             <div id="date-display" class="flex items-center gap-3 px-6 py-2.5 bg-rose-100 rounded-2xl text-rose-600 font-extrabold shadow-inner text-xl">
-                <!-- 날짜가 여기에 표시됨 -->
+                <!-- 날짜가 자바스크립트로 자동 주입됨 -->
             </div>
             
             <!-- 요일 탭 -->
@@ -86,10 +86,10 @@
             </div>
             
             <div id="activity-list" class="space-y-6 flex-1">
-                <!-- 활동 항목들이 여기에 들어감 -->
+                <!-- 활동 항목들 -->
             </div>
 
-            <!-- 추가 버튼 (수정 모드에서만 표시) -->
+            <!-- 추가 버튼 (수정 모드에서만) -->
             <div id="add-btn-area" class="hidden mt-6">
                 <button onclick="addNewActivity()" class="w-full py-5 border-2 border-dashed border-rose-200 rounded-3xl text-rose-400 font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors btn-push">
                     + 새로운 활동 추가
@@ -104,7 +104,7 @@
         <!-- 우측: 시간표 -->
         <div class="w-full lg:w-[58%] p-10 lg:p-16 flex flex-col justify-center overflow-y-auto no-scrollbar">
             <div id="schedule-list" class="space-y-6 lg:space-y-8">
-                <!-- 시간표가 여기에 들어감 -->
+                <!-- 시간표 항목들 -->
             </div>
         </div>
     </div>
@@ -119,36 +119,36 @@
         made by 디지털수혈
     </div>
 
-    <!-- 순수 자바스크립트 (프레임워크 없음) -->
+    <!-- 순수 자바스크립트 로직 -->
     <script>
         // --- 1. 데이터 및 상태 관리 ---
         const DAYS = ['월', '화', '수', '목', '금'];
+        const DAY_MAP = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
         let currentDay = '월';
         let isEditing = false;
         let schoolData = {};
 
         // --- 2. 초기화 함수 ---
         function init() {
-            // 오늘 날짜 표시
             const today = new Date();
-            const dateStr = today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-            document.getElementById('date-display').innerText = dateStr;
-
+            const dayIdx = today.getDay(); // 0:일, 1:월 ... 6:토
+            
             // 오늘 요일 자동 선택 (주말이면 월요일)
-            const dayIdx = today.getDay();
             currentDay = (dayIdx > 0 && dayIdx < 6) ? DAYS[dayIdx - 1] : '월';
 
-            // 저장된 데이터 불러오기
-            const saved = localStorage.getItem('morning_announcement_v5');
+            // 선택된 요일에 맞게 날짜 표시 업데이트
+            updateDateDisplay(currentDay);
+
+            // 로컬 데이터 로드
+            const saved = localStorage.getItem('morning_announcement_v6');
             if (saved) {
                 schoolData = JSON.parse(saved);
             } else {
-                // 초기 기본 데이터 세팅
                 DAYS.forEach(day => {
                     schoolData[day] = {
                         activities: [
                             { id: Date.now() + Math.random(), text: '오늘 시간표 확인하기' },
-                            { id: Date.now() + Math.random(), text: '서랍 정리하기' }
+                            { id: Date.now() + Math.random(), text: '서랍 속에 교과서 정리하기' }
                         ],
                         schedule: [
                             { period: '1교시', subject: '', detail: '' },
@@ -164,7 +164,28 @@
             render();
         }
 
-        // --- 3. 렌더링 함수 (화면 그리기) ---
+        // --- 3. 날짜 계산 및 표시 함수 ---
+        function updateDateDisplay(targetDayName) {
+            const now = new Date();
+            const currentDayIdx = now.getDay(); // 현재 실제 요일 (0-6)
+            const targetDayIdx = DAY_MAP[targetDayName]; // 목표 요일 숫자 (1-5)
+
+            // 이번 주 기준 목표 요일과의 차이 계산
+            const diff = targetDayIdx - currentDayIdx;
+            const targetDate = new Date(now);
+            targetDate.setDate(now.getDate() + diff);
+
+            const dateStr = targetDate.toLocaleDateString('ko-KR', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                weekday: 'short' 
+            });
+            
+            document.getElementById('date-display').innerText = dateStr;
+        }
+
+        // --- 4. 렌더링 함수 (화면 그리기) ---
         function render() {
             const data = schoolData[currentDay];
             const board = document.getElementById('main-board');
@@ -172,13 +193,13 @@
             const statusBadge = document.getElementById('status-badge');
             const addBtnArea = document.getElementById('add-btn-area');
 
-            // 요일 탭 업데이트
+            // 탭 버튼 상태
             document.querySelectorAll('.day-tab').forEach(btn => {
                 if (btn.innerText === currentDay) btn.classList.add('active-day-tab');
                 else btn.classList.remove('active-day-tab');
             });
 
-            // 편집 상태 업데이트
+            // 편집 상태에 따른 UI 변경
             if (isEditing) {
                 editBtn.innerText = '💾 저장 완료';
                 editBtn.className = "flex items-center gap-2 px-8 py-3 rounded-2xl font-bold text-lg transition-all bg-emerald-500 text-white shadow-lg btn-push";
@@ -197,7 +218,7 @@
 
             document.getElementById('current-day-label').innerText = currentDay;
 
-            // 아침 활동 목록 그리기
+            // 아침 활동 리스트
             const activityList = document.getElementById('activity-list');
             activityList.innerHTML = '';
             data.activities.forEach(item => {
@@ -207,8 +228,8 @@
                     div.innerHTML = `
                         <span class="mt-2 text-2xl text-rose-300">✅</span>
                         <div class="flex-1 flex gap-2">
-                            <textarea oninput="updateActivity(${item.id}, this.value)" class="edit-field text-xl font-bold text-slate-700" rows="2">${item.text}</textarea>
-                            <button onclick="removeActivity(${item.id})" class="text-rose-300 hover:text-rose-500 text-3xl btn-push">🗑️</button>
+                            <textarea oninput="updateActivityData(${item.id}, this.value)" class="edit-field text-xl font-bold text-slate-700" rows="2">${item.text}</textarea>
+                            <button onclick="deleteActivity(${item.id})" class="text-rose-200 hover:text-rose-500 text-3xl btn-push">🗑️</button>
                         </div>
                     `;
                 } else {
@@ -220,7 +241,7 @@
                 activityList.appendChild(div);
             });
 
-            // 시간표 목록 그리기
+            // 시간표 리스트
             const scheduleList = document.getElementById('schedule-list');
             scheduleList.innerHTML = '';
             data.schedule.forEach((item, idx) => {
@@ -229,11 +250,11 @@
                 if (isEditing) {
                     row.innerHTML = `
                         <div class="min-w-[100px] lg:min-w-[150px]">
-                            <input oninput="updateSchedule(${idx}, 'period', this.value)" value="${item.period}" class="edit-field text-2xl font-extrabold text-slate-300 uppercase tracking-tighter" />
+                            <input oninput="updateScheduleData(${idx}, 'period', this.value)" value="${item.period}" class="edit-field text-2xl font-extrabold text-slate-300 uppercase tracking-tighter" />
                         </div>
                         <div class="flex-1 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-6">
-                            <input oninput="updateSchedule(${idx}, 'subject', this.value)" placeholder="과목" value="${item.subject}" class="edit-field text-3xl font-black w-32" />
-                            <input oninput="updateSchedule(${idx}, 'detail', this.value)" placeholder="활동 및 준비물" value="${item.detail}" class="edit-field text-2xl font-bold text-slate-400" />
+                            <input oninput="updateScheduleData(${idx}, 'subject', this.value)" placeholder="과목" value="${item.subject}" class="edit-field text-3xl font-black w-32" />
+                            <input oninput="updateScheduleData(${idx}, 'detail', this.value)" placeholder="활동 및 준비물" value="${item.detail}" class="edit-field text-2xl font-bold text-slate-400" />
                         </div>
                     `;
                 } else {
@@ -251,22 +272,22 @@
             });
         }
 
-        // --- 4. 액션 함수들 ---
+        // --- 5. 인터랙션 함수 ---
         function setDay(day) {
             currentDay = day;
+            updateDateDisplay(day); // 탭 클릭 시 날짜 문자열 변경
             render();
         }
 
         function toggleEdit() {
             isEditing = !isEditing;
             if (!isEditing) {
-                // 저장 시 로컬스토리지 기록
-                localStorage.setItem('morning_announcement_v5', JSON.stringify(schoolData));
+                localStorage.setItem('morning_announcement_v6', JSON.stringify(schoolData));
             }
             render();
         }
 
-        function updateActivity(id, text) {
+        function updateActivityData(id, text) {
             const act = schoolData[currentDay].activities.find(a => a.id === id);
             if (act) act.text = text;
         }
@@ -276,16 +297,16 @@
             render();
         }
 
-        function removeActivity(id) {
+        function deleteActivity(id) {
             schoolData[currentDay].activities = schoolData[currentDay].activities.filter(a => a.id !== id);
             render();
         }
 
-        function updateSchedule(idx, field, value) {
-            schoolData[currentDay].schedule[idx][field] = value;
+        function updateScheduleData(idx, field, val) {
+            schoolData[currentDay].schedule[idx][field] = val;
         }
 
-        // 시작!
+        // 시작
         window.onload = init;
     </script>
 </body>
